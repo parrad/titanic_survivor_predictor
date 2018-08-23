@@ -1,0 +1,88 @@
+Titanic Survivor Predictor
+========================================================
+author: Parthiban Malan
+date: Aug 23, 2018 
+autosize: true
+
+About this Application
+========================================================
+
+This is a Shiny application which predicts whether a passenger in the Titanic will survive the wreckage or not.
+
+Follwoing are the passenger details that have to be provided to get the prediction.
+
+- Class travelled by the passenger
+- Sex of the passenger
+- Age of the passenger
+
+Once the above details are provided and the Submit button is clicked, the application will predict and show the output at the bottom.
+
+**Note:** When the application opens up, by default, it shows the prediction for the inital values.
+
+Data Preparation & Feature Engineering
+========================================================
+Datasets have been taken from Kaggle's Titanic competition website https://www.kaggle.com/c/titanic/data. 
+
+Pclass and Sex columns are used for building the models. A new column AgeGroup is created from Age column and the missing values in it are fixed using the title (like Miss, Master) in the Name column.
+
+```{r, echo=FALSE}
+library(dplyr)
+titanic_df <- read.csv("titanic.csv", header = TRUE, stringsAsFactors = FALSE, na.strings = c("")) %>%
+  select(Survived, Pclass, Name, Sex, Age) %>% 
+  mutate(AgeGroup = 
+    ifelse(!is.na(Age), ifelse(Age < 18, 'minor','major'), 
+           ifelse((grepl("Miss.", Name) | grepl("Master.", Name)), 'minor','major'))) %>% 
+  select(Survived, Pclass, Sex, AgeGroup)
+titanic_df$Survived <- as.factor(titanic_df$Survived)
+titanic_df$Sex <- as.factor(titanic_df$Sex)
+titanic_df$AgeGroup <- as.factor(titanic_df$AgeGroup)
+summary(titanic_df)
+```
+
+Predictive Model Selection
+========================================================
+Models will be created using Decision Trees and Random Forest alogithms. 
+
+```{r, echo=FALSE}
+set.seed(22)
+library(caret)
+index<-createDataPartition(titanic_df$Survived, p=0.75, list=F)
+train_df <- titanic_df[index, ]
+test_df <- titanic_df[-index, ]
+
+library(rpart)
+dt_fit <- rpart(Survived ~ ., data = train_df)
+dt_pred <- predict(dt_fit, test_df, type = "class")
+
+library(randomForest)
+rf_fit <- randomForest(Survived ~ ., data = train_df, importance=TRUE, ntree=2000)
+rf_pred <- predict(rf_fit, test_df)
+```
+
+Model 1 accuracy:
+
+```{r, echo=FALSE}
+dt_cm <- confusionMatrix(dt_pred, test_df$Survived)
+#dt_cm$table
+dt_cm$overall[1]
+```
+
+Model 2 accuracy:
+
+```{r, echo=FALSE}
+rf_cm <- confusionMatrix(rf_pred, test_df$Survived)
+#rf_cm$table
+rf_cm$overall[1]
+
+fit <- rf_fit
+save(fit, file = "titanic_survivor_predictor.rda")
+
+```
+
+The accuracy of the models are compared and the best performing model is used in the Shiny application. 
+
+Application and Code Location
+========================================================
+The application is available at https://parthiban.shinyapps.io/titanic_survivor_predictor/.
+
+The code is located at https://github.com/parrad/titanic_survivor_predictor
